@@ -669,6 +669,37 @@ def _extract_python_elements(filepath: Path) -> List[Dict[str, Any]]:
         return []
 
 
+def validate_path_for_shell(path: str) -> str:
+    """Validate and sanitize a path for use in shell commands.
+    
+    Ensures the path is absolute, exists, and contains no shell metacharacters.
+    
+    Args:
+        path: Path string to validate.
+        
+    Returns:
+        Validated absolute path string.
+        
+    Raises:
+        ValueError: If path is invalid or contains dangerous characters.
+    """
+    # Check for shell metacharacters
+    dangerous_chars = set(';&|`$\\(){}[]<>!#\n\r')
+    if any(c in path for c in dangerous_chars):
+        raise ValueError(f"Path contains invalid characters: {path!r}")
+    
+    # Resolve to absolute path
+    p = Path(path).resolve()
+    
+    # Verify it exists and is a directory
+    if not p.exists():
+        raise ValueError(f"Path does not exist: {path!r}")
+    if not p.is_dir():
+        raise ValueError(f"Path is not a directory: {path!r}")
+    
+    return str(p)
+
+
 def is_safe_read_command(cmd: str) -> bool:
     """Check if a shell command is a safe read-only operation.
     
@@ -1262,21 +1293,55 @@ class LocalCode:
         if not message:
             return {"ok": False, "error": "empty commit message"}
 
-        status = run(f"git -C {self.repo_root} status --porcelain")
-        if not status:
-            return {"ok": False, "error": "nothing to commit"}
+        # Validate repo_root to prevent command injection
+        try:
+            safe_repo_root = validate_path_for_shell(self.repo_root)
+        except ValueError as e:
+            return {"ok": False, "error": f"Invalid repo path: {e}"}
 
-        output = run(
-            f"git -C {self.repo_root} add -A && git -C {self.repo_root} commit -m {message!r}"
-        )
-        if output is None:
-            return {"ok": False, "error": "git commit failed"}
-        print(styled(output, "32m"))
-        
-        # Automatically compress after successful commit (unit of work is complete)
-        self.cmd_compress()
-        
-        return {"ok": True, "message": message, "git": output}
+        # Use subprocess with list arguments instead of shell commands
+        try:
+            # Check git status
+            status_result = subprocess.run(
+                ["git", "-C", safe_repo_root, "status", "--porcelain"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if not status_result.stdout.strip():
+                return {"ok": False, "error": "nothing to commit"}
+
+            # Stage all changes
+            add_result = subprocess.run(
+                ["git", "-C", safe_repo_root, "add", "-A"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if add_result.returncode != 0:
+                return {"ok": False, "error": f"git add failed: {add_result.stderr.strip()}"}
+
+            # Commit changes
+            commit_result = subprocess.run(
+                ["git", "-C", safe_repo_root, "commit", "-m", message],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if commit_result.returncode != 0:
+                return {"ok": False, "error": f"git commit failed: {commit_result.stderr.strip()}"}
+            
+            output = commit_result.stdout.strip()
+            print(styled(output, "32m"))
+            
+            # Automatically compress after successful commit (unit of work is complete)
+            self.cmd_compress()
+            
+            return {"ok": True, "message": message, "git": output}
+        except subprocess.TimeoutExpired:
+            return {"ok": False, "error": "git command timed out"}
+        except Exception as e:
+            return {"ok": False, "error": f"git error: {e}"}
 
     def tool_browser_execute(self, args: Dict[str, Any]) -> Dict[str, Any]:
         code = args.get("code", "").strip()
@@ -1745,22 +1810,56 @@ def main() -> None:
 
 def commit_changes(message: str) -> dict:
     """Standalone commit function for tool usage."""
-    repo_root = run("git rev-parse --show-toplevel") or os.getcwd()
+    repo_root_raw = run("git rev-parse --show-toplevel") or os.getcwd()
     
     if not message or not message.strip():
         return {"ok": False, "error": "empty commit message"}
     
-    status = run(f"git -C {repo_root} status --porcelain")
-    if not status:
-        return {"ok": False, "error": "nothing to commit"}
+    # Validate repo_root to prevent command injection
+    try:
+        safe_repo_root = validate_path_for_shell(repo_root_raw)
+    except ValueError as e:
+        return {"ok": False, "error": f"Invalid repo path: {e}"}
     
-    output = run(
-        f"git -C {repo_root} add -A && git -C {repo_root} commit -m {message!r}"
-    )
-    if output is None:
-        return {"ok": False, "error": "git commit failed"}
-    print(styled(output, "32m"))
-    return {"ok": True, "message": message, "git": output}
+    # Use subprocess with list arguments instead of shell commands
+    try:
+        # Check git status
+        status_result = subprocess.run(
+            ["git", "-C", safe_repo_root, "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if not status_result.stdout.strip():
+            return {"ok": False, "error": "nothing to commit"}
+        
+        # Stage all changes
+        add_result = subprocess.run(
+            ["git", "-C", safe_repo_root, "add", "-A"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if add_result.returncode != 0:
+            return {"ok": False, "error": f"git add failed: {add_result.stderr.strip()}"}
+        
+        # Commit changes
+        commit_result = subprocess.run(
+            ["git", "-C", safe_repo_root, "commit", "-m", message],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if commit_result.returncode != 0:
+            return {"ok": False, "error": f"git commit failed: {commit_result.stderr.strip()}"}
+        
+        output = commit_result.stdout.strip()
+        print(styled(output, "32m"))
+        return {"ok": True, "message": message, "git": output}
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": "git command timed out"}
+    except Exception as e:
+        return {"ok": False, "error": f"git error: {e}"}
 
 
 if __name__ == "__main__":
