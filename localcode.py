@@ -924,7 +924,7 @@ class LocalCode:
         if enable_thinking:
             print(f"DEBUG: enable_thinking=True, setting reasoning_format=auto")
             payload["reasoning_format"] = "auto"
-        elif openai_tools:
+        if openai_tools:
             payload["tools"] = openai_tools
             payload["tool_choice"] = "auto"
 
