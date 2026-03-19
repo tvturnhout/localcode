@@ -924,11 +924,9 @@ class LocalCode:
             payload["tools"] = openai_tools
             payload["tool_choice"] = "auto"
         
-        # Add chat_template_kwargs for thinking mode if enabled
-        if enable_thinking is not None:
-            payload["chat_template_kwargs"] = {
-                "enable_thinking": enable_thinking,
-            }
+        # Add reasoning_format for thinking mode (llama.cpp API)
+        if enable_thinking:
+            payload["reasoning_format"] = "auto"
 
         req = urllib.request.Request(
             f"{LLAMA_HOST}/v1/chat/completions",
