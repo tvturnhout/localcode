@@ -1023,6 +1023,14 @@ class LocalCode:
         message = choices[0].get("message", {})
         return message.get("content", "") or ""
 
+    def extract_reasoning_content(self, response: Dict[str, Any]) -> str:
+        """Extract reasoning_content from OpenAI-compatible response."""
+        choices = response.get("choices", [])
+        if not choices:
+            return ""
+        message = choices[0].get("message", {})
+        return message.get("reasoning_content", "") or ""
+
     def extract_tool_calls(self, response: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Extract tool calls from OpenAI-compatible response."""
         choices = response.get("choices", [])
@@ -1293,6 +1301,7 @@ class LocalCode:
                 return
 
             text = self.extract_text(response)
+            reasoning = self.extract_reasoning_content(response)
             tool_calls = self.extract_tool_calls(response)
             finish_reason = self.get_finish_reason(response)
 
@@ -1304,6 +1313,12 @@ class LocalCode:
                 assistant_msg["tool_calls"] = tool_calls
             if text or tool_calls:
                 self.messages.append(assistant_msg)
+
+            # Print reasoning content first if present (thinking output)
+            if reasoning:
+                print(styled("Thinking:", "36m"))
+                print(styled(reasoning, "90m"))
+                print()
 
             if text:
                 self.print_assistant_text(text)
