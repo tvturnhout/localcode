@@ -1529,11 +1529,7 @@ Conversation History to Summarize:
         if not response:
             return
 
-        loops = 0
         while True:
-            loops += 1
-            if loops > MAX_TOOL_LOOPS:
-                return
 
             text = self.extract_text(response)
             reasoning = self.extract_reasoning_content(response)
