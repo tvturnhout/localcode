@@ -3,7 +3,7 @@ from __future__ import annotations
 
 VERSION: Final[int] = 3
 APP_NAME: Final[str] = "localcode"
-SUMMARY_TOKEN_THRESHOLD: Final[int] = 90_000  # Trigger summary at 90k tokens (limit is 95k)
+SUMMARY_TOKEN_THRESHOLD: Final[int] = 75_000  # Trigger summary at 75k tokens (limit is 95k)
 
 import ast
 import datetime
