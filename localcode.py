@@ -1190,9 +1190,11 @@ Conversation History to Summarize:
         # Save old token count before resetting
         old_tokens = self.total_tokens
         
-        # Reset token counter (summary is much smaller)
-        self.total_tokens = 5000  # Approximate size of summary + recent messages
+        # Calculate actual token count after summarization
+        self.total_tokens = self._estimate_tokens_from_messages()
         self._tokens_estimated = True
+        
+        new_tokens = self.total_tokens
         
         # Display summary in distinct color
         print()
@@ -1201,7 +1203,7 @@ Conversation History to Summarize:
         print(styled("=" * 60, "35m"))
         print(styled(summary_text, "35m"))
         print(styled("=" * 60, "35m"))
-        print(styled(f"✓ Summarized history (was ~{old_tokens:,} tokens, now ~5k)", "1;32m"))
+        print(styled(f"✓ Summarized history (was ~{old_tokens:,} tokens, now ~{new_tokens:,})", "1;32m"))
         
         # Save summary to log file
         try:
@@ -1211,7 +1213,7 @@ Conversation History to Summarize:
             with open(log_file, "w", encoding="utf-8") as f:
                 f.write(f"Conversation Summary - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
                 f.write(f"Tokens before: ~{old_tokens:,}\n")
-                f.write(f"Tokens after: ~5,000\n")
+                f.write(f"Tokens after: ~{new_tokens:,}\n")
                 f.write("=" * 60 + "\n\n")
                 f.write(summary_text)
             print(styled(f"💾 Summary saved to: {log_file}", "93m"))
