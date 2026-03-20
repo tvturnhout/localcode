@@ -1031,11 +1031,8 @@ class LocalCode:
                 if self.last_usage:
                     prompt_tokens = self.last_usage.get("prompt_tokens", 0)
                     completion_tokens = self.last_usage.get("completion_tokens", 0)
-                    if self._tokens_estimated:
-                        # Replace estimated total with actual API prompt tokens
-                        self.total_tokens = prompt_tokens
-                    else:
-                        self.total_tokens += prompt_tokens
+                    # API prompt_tokens is the full conversation size, always replace
+                    self.total_tokens = prompt_tokens
                     self._tokens_estimated = False  # Reset when we get real API data
                 spinner.stop()
                 print(f"{styled('local', '48;2;80;80;200;37m')}{styled('code', '48;2;60;60;180;97m')} {styled('✓', '32m')} {styled(f'input tokens: {prompt_tokens:,}', '90m')}\n")
