@@ -3,7 +3,7 @@ from __future__ import annotations
 
 VERSION: Final[int] = 3
 APP_NAME: Final[str] = "localcode"
-SUMMARY_TOKEN_THRESHOLD: Final[int] = 75_000  # Trigger summary at 75k tokens
+SUMMARY_TOKEN_THRESHOLD: Final[int] = 85_000  # Trigger summary at 85k tokens
 
 import ast
 import datetime
@@ -882,6 +882,7 @@ class LocalCode:
         self._map_mtime: Dict[Tuple[Optional[str], bool], float] = {}
         self._initial_context_sent: bool = False  # Track if initial context was sent
         self.auto_approve: bool = False  # Auto-approve all commands when True
+        self._is_summarizing: bool = False  # Prevent recursive summarization
 
         self._check_llama_server()
         self._start_bridge_if_needed()
@@ -981,7 +982,7 @@ class LocalCode:
     def llama_request(self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None) -> Optional[Dict[str, Any]]:
         """Send a chat completion request to llama.cpp server."""
         # Check if we need to summarize history in auto mode
-        if self.auto_approve and self.total_tokens > SUMMARY_TOKEN_THRESHOLD:
+        if self.auto_approve and self.total_tokens > SUMMARY_TOKEN_THRESHOLD and not self._is_summarizing:
             self.summarize_history()
         
         # Convert tools to OpenAI format expected by llama.cpp
@@ -1169,7 +1170,12 @@ Conversation History to Summarize:
             {"role": "user", "content": summary_prompt}
         ]
         
-        response = self.llama_request(summary_messages)
+        # Prevent recursive summarization
+        self._is_summarizing = True
+        try:
+            response = self.llama_request(summary_messages)
+        finally:
+            self._is_summarizing = False
         if not response:
             print(styled("⚠ Failed to summarize history, keeping original", "93m"))
             return
