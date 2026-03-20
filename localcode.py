@@ -1194,7 +1194,29 @@ Conversation History to Summarize:
         self.total_tokens = 5000  # Approximate size of summary + recent messages
         self._tokens_estimated = True
         
-        print(styled(f"✓ Summarized history (was ~{old_tokens:,} tokens, now ~5k)", "32m"))
+        # Display summary in distinct color
+        print()
+        print(styled("=" * 60, "35m"))
+        print(styled("📝 CONVERSATION SUMMARY", "1;35m"))
+        print(styled("=" * 60, "35m"))
+        print(styled(summary_text, "35m"))
+        print(styled("=" * 60, "35m"))
+        print(styled(f"✓ Summarized history (was ~{old_tokens:,} tokens, now ~5k)", "1;32m"))
+        
+        # Save summary to log file
+        try:
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_file = f"conversation_summary_{timestamp}.txt"
+            with open(log_file, "w", encoding="utf-8") as f:
+                f.write(f"Conversation Summary - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"Tokens before: ~{old_tokens:,}\n")
+                f.write(f"Tokens after: ~5,000\n")
+                f.write("=" * 60 + "\n\n")
+                f.write(summary_text)
+            print(styled(f"💾 Summary saved to: {log_file}", "93m"))
+        except Exception as e:
+            print(styled(f"⚠ Could not save summary log: {e}", "93m"))
 
 
     def extract_text(self, response: Dict[str, Any]) -> str:
