@@ -3,6 +3,7 @@ from __future__ import annotations
 
 VERSION: Final[int] = 3
 APP_NAME: Final[str] = "localcode"
+SUMMARY_TOKEN_THRESHOLD: Final[int] = 75_000  # Trigger summary at 75k tokens
 
 import ast
 import datetime
@@ -979,6 +980,10 @@ class LocalCode:
 
     def llama_request(self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None) -> Optional[Dict[str, Any]]:
         """Send a chat completion request to llama.cpp server."""
+        # Check if we need to summarize history in auto mode
+        if self.auto_approve and self.total_tokens > SUMMARY_TOKEN_THRESHOLD:
+            self.summarize_history()
+        
         # Convert tools to OpenAI format expected by llama.cpp
         openai_tools = None
         if tools:
@@ -1093,6 +1098,95 @@ class LocalCode:
     def get_messages_with_system(self) -> List[Dict[str, Any]]:
         """Return messages list with system prompt prepended."""
         return [{"role": "system", "content": SYSTEM_PROMPT}] + self.messages
+
+    def summarize_history(self) -> None:
+        """Summarize conversation history to reduce token usage.
+        
+        Keeps last 3 messages intact, summarizes everything before that,
+        and replaces the old messages with the summary.
+        """
+        if len(self.messages) <= 3:
+            return  # Not enough history to summarize
+        
+        # Keep last 3 messages intact
+        recent_messages = self.messages[-3:]
+        history_to_summarize = self.messages[:-3]
+        
+        # Build summary prompt
+        history_text = "\n\n".join([
+            f"## {'User' if m['role'] == 'user' else 'Assistant'}\n{m['content']}"
+            for m in history_to_summarize
+        ])
+        
+        summary_prompt = f"""Summarize the following conversation history for a coding assistant. Extract only the essential information needed to continue the work:
+
+**PRESERVE:**
+- Current project/repository being worked on
+- Active task or goal (what we're building/fixing right now)
+- Key files being modified (paths and what changes were made)
+- Important decisions made (architecture, design choices)
+- Any code patterns or snippets that are still relevant
+- Pending tasks or unresolved issues
+- Recent shell commands and their important outputs
+
+**DISCARD:**
+- Completed tasks that are done
+- Old file reads that aren't referenced anymore
+- Explained concepts that were already understood
+- Previous iterations of the same code
+- General chitchat or greetings
+
+Format the summary as:
+
+### Project Context
+[Brief description of what we're working on]
+
+### Current Goal
+[What we need to do next]
+
+### Key Files
+- [file path]: [what was changed/why it matters]
+
+### Important Decisions
+- [decision 1]
+- [decision 2]
+
+### Pending Items
+- [item 1]
+- [item 2]
+
+### Relevant Code/Commands
+[Any critical code snippets or command outputs]
+
+---
+Conversation History to Summarize:
+{history_text}
+"""
+        
+        # Send summary request
+        summary_messages = [
+            {"role": "system", "content": "You are a concise summarizer. Extract only essential information."},
+            {"role": "user", "content": summary_prompt}
+        ]
+        
+        response = self.llama_request(summary_messages)
+        if not response:
+            print(styled("⚠ Failed to summarize history, keeping original", "93m"))
+            return
+        
+        summary_text = self.extract_text(response)
+        
+        # Replace history with summary
+        self.messages = [
+            {"role": "user", "content": f"### Conversation Summary\n\n{summary_text}\n\n---\n*History summarized to reduce token usage*"}
+        ] + recent_messages
+        
+        # Reset token counter (summary is much smaller)
+        self.total_tokens = 5000  # Approximate size of summary + recent messages
+        self._tokens_estimated = True
+        
+        print(styled(f"✓ Summarized history (was ~{self.total_tokens:,} tokens, now ~5k)", "32m"))
+
 
     def extract_text(self, response: Dict[str, Any]) -> str:
         """Extract text content from OpenAI-compatible response."""
@@ -1701,6 +1795,8 @@ class LocalCode:
                 elif command == "/auto":
                     self.auto_approve = not self.auto_approve
                     print(f"Auto-approve {'enabled' if self.auto_approve else 'disabled'} (use /auto to toggle)")
+                elif command == "/summary":
+                    self.summarize_history()
                 elif command == "/help":
                     print("/add <glob> - List files matching pattern")
                     print("/ctx - Show context status")
@@ -1709,6 +1805,7 @@ class LocalCode:
                     print("/clear - Clear conversation")
                     print("/undo - Undo commit")
                     print("/auto - Toggle auto-approve (skip y/n prompts)")
+                    print("/summary - Summarize conversation history (auto at 75k tokens in auto mode)")
                     print("/exit - Exit")
                     print("!<cmd> - Shell command")
                     print()
