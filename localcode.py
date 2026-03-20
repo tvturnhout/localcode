@@ -3,7 +3,7 @@ from __future__ import annotations
 
 VERSION: Final[int] = 3
 APP_NAME: Final[str] = "localcode"
-SUMMARY_TOKEN_THRESHOLD: Final[int] = 85_000  # Trigger summary at 85k tokens
+SUMMARY_TOKEN_THRESHOLD: Final[int] = 90_000  # Trigger summary at 90k tokens (limit is 95k)
 
 import ast
 import datetime
@@ -1121,6 +1121,13 @@ class LocalCode:
         
         summary_prompt = f"""Summarize the following conversation history for a coding assistant. Extract only the essential information needed to continue the work:
 
+**CRITICAL - PRESERVE THE LONG-TERM GOAL:**
+The most important thing to capture is the OVERARCHING OBJECTIVE - what is the main project/task we're working towards? This may span multiple sessions. Include:
+- The primary goal and scope of the project
+- What has been accomplished so far (milestones reached)
+- What remains to be done (remaining scope)
+- Any constraints or requirements that must be maintained
+
 **PRESERVE:**
 - Current project/repository being worked on
 - Active task or goal (what we're building/fixing right now)
@@ -1139,11 +1146,20 @@ class LocalCode:
 
 Format the summary as:
 
+### Long-Term Goal
+[The overarching objective - what are we ultimately trying to accomplish?]
+
 ### Project Context
 [Brief description of what we're working on]
 
+### Progress So Far
+[What milestones have been completed]
+
 ### Current Goal
 [What we need to do next]
+
+### Remaining Work
+[What still needs to be done to complete the overall goal]
 
 ### Key Files
 - [file path]: [what was changed/why it matters]
