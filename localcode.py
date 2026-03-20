@@ -880,6 +880,7 @@ class LocalCode:
         self._map_cache: Dict[Tuple[Optional[str], bool], str] = {}
         self._map_mtime: Dict[Tuple[Optional[str], bool], float] = {}
         self._initial_context_sent: bool = False  # Track if initial context was sent
+        self.auto_approve: bool = False  # Auto-approve all commands when True
 
         self._check_llama_server()
         self._start_bridge_if_needed()
@@ -1164,14 +1165,17 @@ class LocalCode:
             if not overwrite:
                 return {"ok": False, "error": "file already exists (set overwrite=true to replace)"}
             
-            # Confirm overwrite
-            print(styled(f"⚠ {path} already exists. Overwrite? (y/n): ", "93m"), end="")
-            sys.stdout.flush()
-            try:
-                answer = input().strip().lower()
-            except (EOFError, KeyboardInterrupt):
-                print()
-                answer = "n"
+            # Confirm overwrite (unless auto_approve is enabled)
+            if self.auto_approve:
+                answer = "y"
+            else:
+                print(styled(f"⚠ {path} already exists. Overwrite? (y/n): ", "93m"), end="")
+                sys.stdout.flush()
+                try:
+                    answer = input().strip().lower()
+                except (EOFError, KeyboardInterrupt):
+                    print()
+                    answer = "n"
             
             if answer != "y":
                 return {"ok": False, "error": "user cancelled overwrite"}
@@ -1254,8 +1258,8 @@ class LocalCode:
         if not cmd:
             return {"ok": False, "error": "empty command"}
 
-        # Auto-approve safe read-only commands
-        if is_safe_read_command(cmd):
+        # Auto-approve safe read-only commands or when auto_approve is enabled
+        if is_safe_read_command(cmd) or self.auto_approve:
             print(f"{styled(f'$ {cmd}', '90m')}")
             answer = "y"
         else:
@@ -1694,6 +1698,9 @@ class LocalCode:
                     self.cmd_status()
                 elif command == "/compress":
                     self.cmd_compress()
+                elif command == "/auto":
+                    self.auto_approve = not self.auto_approve
+                    print(f"Auto-approve {'enabled' if self.auto_approve else 'disabled'} (use /auto to toggle)")
                 elif command == "/help":
                     print("/add <glob> - List files matching pattern")
                     print("/ctx - Show context status")
@@ -1701,6 +1708,7 @@ class LocalCode:
                     print("/compress - Compress large tool outputs (repo maps, shell outputs, etc.)")
                     print("/clear - Clear conversation")
                     print("/undo - Undo commit")
+                    print("/auto - Toggle auto-approve (skip y/n prompts)")
                     print("/exit - Exit")
                     print("!<cmd> - Shell command")
                     print()
