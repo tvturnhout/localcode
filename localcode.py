@@ -1533,7 +1533,6 @@ Conversation History to Summarize:
         while True:
             loops += 1
             if loops > MAX_TOOL_LOOPS:
-                print(styled("Stopped: too many tool loops.", "31m"))
                 return
 
             text = self.extract_text(response)
