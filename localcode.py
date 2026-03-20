@@ -1114,7 +1114,7 @@ class LocalCode:
         
         # Build summary prompt
         history_text = "\n\n".join([
-            f"## {'User' if m['role'] == 'user' else 'Assistant'}\n{m['content']}"
+            f"## {'User' if m['role'] == 'user' else 'Assistant'}\n{m.get('content', '')}"
             for m in history_to_summarize
         ])
         
