@@ -1187,11 +1187,14 @@ Conversation History to Summarize:
             {"role": "user", "content": f"### Conversation Summary\n\n{summary_text}\n\n---\n*History summarized to reduce token usage*"}
         ] + recent_messages
         
+        # Save old token count before resetting
+        old_tokens = self.total_tokens
+        
         # Reset token counter (summary is much smaller)
         self.total_tokens = 5000  # Approximate size of summary + recent messages
         self._tokens_estimated = True
         
-        print(styled(f"✓ Summarized history (was ~{self.total_tokens:,} tokens, now ~5k)", "32m"))
+        print(styled(f"✓ Summarized history (was ~{old_tokens:,} tokens, now ~5k)", "32m"))
 
 
     def extract_text(self, response: Dict[str, Any]) -> str:
